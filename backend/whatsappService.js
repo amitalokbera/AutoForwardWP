@@ -160,9 +160,13 @@ class WhatsAppForwardService {
         // Skip if sender number is empty
         if (!senderNumber) return false;
         
+        console.log(`[Message Received] From: ${sender}, Sender Number: ${senderNumber}, Message: ${message.body || '[Media]'}`);
+        
         const isFromTracker = this.trackerNumbers.some(num => 
             senderNumber === num || sender.includes(num)
         );
+        
+        console.log(`[Tracker Check] Is from tracked number: ${isFromTracker}, Tracked Numbers: ${this.trackerNumbers.join(', ')}`);
         
         if (!isFromTracker) return false;
 
@@ -180,14 +184,16 @@ class WhatsAppForwardService {
             const endTime = parseInt(endHour) * 60 + parseInt(endMin);
             const currentTimeInMinutes = parseInt(currentHour) * 60 + parseInt(currentMin);
             
-            if (startTime <= endTime) {
-                return currentTimeInMinutes >= startTime && currentTimeInMinutes <= endTime;
-            } else {
-                // Time range crosses midnight
-                return currentTimeInMinutes >= startTime || currentTimeInMinutes <= endTime;
-            }
+            const isInTimeRange = startTime <= endTime 
+                ? currentTimeInMinutes >= startTime && currentTimeInMinutes <= endTime
+                : currentTimeInMinutes >= startTime || currentTimeInMinutes <= endTime;
+            
+            console.log(`[Time Range Check] Current Time: ${currentTime} (${currentTimeInMinutes} mins), Range: ${this.startTimeRange}-${this.endTimeRange}, Timezone: ${this.timezone}, In Range: ${isInTimeRange}`);
+            
+            return isInTimeRange;
         }
         
+        console.log(`[Time Range Check] No time range configured, forwarding enabled`);
         return true;
     }
 
@@ -196,18 +202,23 @@ class WhatsAppForwardService {
             // Format the forward number with country code
             const formattedNumber = this.countryCode + this.forwardNumber + '@c.us';
             
+            console.log(`[Forward Start] Attempting to forward message from ${message.from}`);
+            console.log(`[Forward Details] Message Type: ${message.hasMedia ? 'Media' : 'Text'}, Content: ${message.body || '[No text]'}, Target: ${formattedNumber}`);
+            
             // Try to get or create the chat
             let chat = null;
             try {
                 // First, try to get existing chat
                 chat = await this.client.getChatById(formattedNumber);
+                console.log(`[Forward Status] Chat found for ${formattedNumber}`);
             } catch (e) {
                 try {
                     // If chat doesn't exist, try to get the contact and create chat
                     const contact = await this.client.getContactById(formattedNumber);
                     chat = await contact.getChat();
+                    console.log(`[Forward Status] Chat created from contact for ${formattedNumber}`);
                 } catch (contactError) {
-                    console.log(`Chat/Contact not found, will attempt direct message send for ${formattedNumber}`);
+                    console.log(`[Forward Status] Chat/Contact not found, will attempt direct message send for ${formattedNumber}`);
                 }
             }
             
@@ -233,7 +244,7 @@ class WhatsAppForwardService {
                             await contact.sendMessage(media);
                         }
                     }
-                    console.log(`Forwarded media from ${message.from} to ${this.forwardNumber}`);
+                    console.log(`✓ [Forward Success] Media forwarded from ${message.from} to ${this.forwardNumber}`);
                 } catch (mediaError) {
                     console.error('Error forwarding media, sending text instead:', mediaError);
                     // Fallback: send as text if media download fails
@@ -259,7 +270,7 @@ class WhatsAppForwardService {
                         const contact = await this.client.getContactById(formattedNumber);
                         await contact.sendMessage(textMessage);
                     }
-                    console.log(`Forwarded message from ${message.from} to ${this.forwardNumber}`);
+                    console.log(`✓ [Forward Success] Message forwarded from ${message.from} to ${this.forwardNumber}`);
                 } catch (sendError) {
                     console.error('Error sending text message:', sendError);
                 }
