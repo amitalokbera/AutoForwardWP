@@ -161,7 +161,7 @@ class WhatsAppForwardService {
                 isForwarded: message.isForwarded
             }, null, 2));
 
-            if (this.shouldForwardMessage(message)) {
+            if (await this.shouldForwardMessage(message)) {
                 await this.forwardMessage(message);
             }
         });
