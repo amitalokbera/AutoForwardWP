@@ -1,17 +1,21 @@
-# Stage 1: Build the application
-FROM node:22-alpine AS builder
+# Use pre-built wwebjs-api image with all dependencies
+FROM avoylenko/wwebjs-api:latest
 
 WORKDIR /app
-COPY package*.json ./
-RUN npm install --only=production
 
-# Stage 2: Create the final image
-FROM node:22-alpine
+# Copy package.json and install dependencies
+COPY package.json .
+RUN npm install
 
-WORKDIR /app
-COPY --from=builder /app/node_modules ./node_modules
+# Create directory for configuration
+RUN mkdir -p /app/config
+
+# Copy application code
 COPY . .
 
 EXPOSE 3000
+
+# Default volume mount point for configuration persistence
+VOLUME ["/app/config"]
 
 CMD ["npm", "start"]
