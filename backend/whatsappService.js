@@ -15,7 +15,7 @@ class WhatsAppForwardService {
         this.isRunning = false;
         this.connectionInterval = null;
         this.isAuthenticating = false;
-        
+
         // Load config
         this.trackerNumbers = this.config.trackerNumbers;
         this.forwardNumber = this.config.forwardNumber;
@@ -28,17 +28,17 @@ class WhatsAppForwardService {
     hasSavedSession() {
         // Determine auth directory based on environment
         const isDocker = fs.existsSync('/.dockerenv') || process.env.DOCKER_ENV === 'true';
-        const authDir = isDocker 
-            ? '/app/whatsapp_auth' 
+        const authDir = isDocker
+            ? '/app/whatsapp_auth'
             : path.join(process.cwd(), '.wwebjs_auth');
-        
+
         try {
             // Check if auth directory exists
             if (!fs.existsSync(authDir)) {
                 console.log(`Auth directory does not exist: ${authDir}`);
                 return false;
             }
-            
+
             // List all contents in the auth directory recursively to find session files
             const files = this.getAllFiles(authDir);
             const hasSession = files.length > 0;
@@ -50,7 +50,7 @@ class WhatsAppForwardService {
             return false;
         }
     }
-    
+
     getAllFiles(dir) {
         const files = [];
         try {
@@ -72,17 +72,17 @@ class WhatsAppForwardService {
     async initialize() {
         // Determine auth directory based on environment
         const isDocker = fs.existsSync('/.dockerenv') || process.env.DOCKER_ENV === 'true';
-        const authDir = isDocker 
-            ? '/app/whatsapp_auth' 
+        const authDir = isDocker
+            ? '/app/whatsapp_auth'
             : path.join(process.cwd(), '.wwebjs_auth');
-        
+
         // Ensure auth directory exists
         if (!fs.existsSync(authDir)) {
             fs.mkdirSync(authDir, { recursive: true });
         }
-        
+
         console.log(`Using auth directory: ${authDir}`);
-        
+
         // Check if we have a saved session
         const savedSession = this.sessionManager.loadSession();
         if (savedSession) {
@@ -90,7 +90,7 @@ class WhatsAppForwardService {
         } else {
             console.log('No saved session found - you will need to scan QR code');
         }
-        
+
         this.client = new Client({
             authStrategy: new LocalAuth({ clientId: 'whatsapp-forward', dataPath: authDir }),
             puppeteer: {
@@ -117,20 +117,20 @@ class WhatsAppForwardService {
             this.isRunning = true;
             this.isAuthenticating = false;
             this.startTime = Date.now();
-            
+
             // Save session data for future recovery
             this.sessionManager.saveSession({
                 authenticatedAt: new Date().toISOString(),
                 clientId: 'whatsapp-forward'
             });
-            
+
             this.startConnectionManagement();
         });
 
         this.client.on('authenticated', () => {
             console.log('Authenticated successfully!');
             this.isAuthenticating = false;
-            
+
             // Backup session on successful authentication
             this.sessionManager.backupSession();
         });
@@ -160,7 +160,7 @@ class WhatsAppForwardService {
                 deviceType: message.deviceType,
                 isForwarded: message.isForwarded
             }, null, 2));
-            
+
             if (this.shouldForwardMessage(message)) {
                 await this.forwardMessage(message);
             }
@@ -168,7 +168,7 @@ class WhatsAppForwardService {
 
         console.log('Initializing WhatsApp client...');
         this.isAuthenticating = true;
-        
+
         try {
             await this.client.initialize();
             console.log('WhatsApp client initialized successfully');
@@ -181,29 +181,29 @@ class WhatsAppForwardService {
 
     shouldForwardMessage(message) {
         if (!this.trackerNumbers.length || !this.forwardNumber) return false;
-        
+
         // Get sender from message.from or message.author
         const sender = message.from || message.author;
-        
+
         // Skip if sender is undefined or invalid
         if (!sender) return false;
-        
+
         // Extract just the phone number from sender (handles @c.us, @lid, and other formats)
         const senderNumber = sender.replace(/@c\.us|@lid|@g\.us|@.*/, '');
-        
+
         // Skip if sender number is empty
         if (!senderNumber) return false;
-        
+
         console.log(`[Message Received] From: ${sender}, Sender Number: ${senderNumber}, Message: ${message.body || '[Media]'}`);
-        
+
         const isFromTracker = this.trackerNumbers.some(num => {
             // Extract just the number part from tracker number (remove country code if present)
             const cleanNum = num.replace(/@c\.us|@lid|@g\.us|@.*/, '');
             return senderNumber === num || senderNumber === cleanNum || sender.includes(num);
         });
-        
+
         console.log(`[Tracker Check] Is from tracked number: ${isFromTracker}, Tracked Numbers: ${this.trackerNumbers.join(', ')}`);
-        
+
         if (!isFromTracker) return false;
 
         // Check if current time is within the time range
@@ -211,24 +211,24 @@ class WhatsAppForwardService {
             const now = new Date();
             const options = { timeZone: this.timezone, hour: '2-digit', minute: '2-digit', hour12: false };
             const currentTime = now.toLocaleTimeString('en-US', options);
-            
+
             const [startHour, startMin] = this.startTimeRange.split(':');
             const [endHour, endMin] = this.endTimeRange.split(':');
             const [currentHour, currentMin] = currentTime.split(':');
-            
+
             const startTime = parseInt(startHour) * 60 + parseInt(startMin);
             const endTime = parseInt(endHour) * 60 + parseInt(endMin);
             const currentTimeInMinutes = parseInt(currentHour) * 60 + parseInt(currentMin);
-            
-            const isInTimeRange = startTime <= endTime 
+
+            const isInTimeRange = startTime <= endTime
                 ? currentTimeInMinutes >= startTime && currentTimeInMinutes <= endTime
                 : currentTimeInMinutes >= startTime || currentTimeInMinutes <= endTime;
-            
+
             console.log(`[Time Range Check] Current Time: ${currentTime} (${currentTimeInMinutes} mins), Range: ${this.startTimeRange}-${this.endTimeRange}, Timezone: ${this.timezone}, In Range: ${isInTimeRange}`);
-            
+
             return isInTimeRange;
         }
-        
+
         console.log(`[Time Range Check] No time range configured, forwarding enabled`);
         return true;
     }
@@ -237,10 +237,10 @@ class WhatsAppForwardService {
         try {
             // Format the forward number with country code
             const formattedNumber = this.countryCode + this.forwardNumber + '@c.us';
-            
+
             console.log(`[Forward Start] Attempting to forward message from ${message.from}`);
             console.log(`[Forward Details] Message Type: ${message.hasMedia ? 'Media' : 'Text'}, Content: ${message.body || '[No text]'}, Target: ${formattedNumber}`);
-            
+
             // Try to get or create the chat
             let chat = null;
             try {
@@ -257,13 +257,13 @@ class WhatsAppForwardService {
                     console.log(`[Forward Status] Chat/Contact not found, will attempt direct message send for ${formattedNumber}`);
                 }
             }
-            
+
             // Check if message has media/attachment
             if (message.hasMedia) {
                 try {
                     // Download the media from the original message
                     const media = await message.downloadMedia();
-                    
+
                     if (chat) {
                         // Send media with the message body as caption
                         if (message.body) {
@@ -322,16 +322,16 @@ class WhatsAppForwardService {
         const now = new Date();
         const options = { timeZone: this.timezone, hour: '2-digit', minute: '2-digit', hour12: false };
         const currentTime = now.toLocaleTimeString('en-US', options);
-        
+
         const [startHour, startMin] = this.startTimeRange.split(':');
         const [endHour, endMin] = this.endTimeRange.split(':');
         const [currentHour, currentMin] = currentTime.split(':');
-        
+
         const startTime = parseInt(startHour) * 60 + parseInt(startMin);
         const endTime = parseInt(endHour) * 60 + parseInt(endMin);
         const currentTimeInMinutes = parseInt(currentHour) * 60 + parseInt(currentMin);
 
-        const isInTimeRange = startTime <= endTime 
+        const isInTimeRange = startTime <= endTime
             ? currentTimeInMinutes >= startTime && currentTimeInMinutes <= endTime
             : currentTimeInMinutes >= startTime || currentTimeInMinutes <= endTime;
 

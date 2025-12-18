@@ -11,13 +11,13 @@ class SessionManager {
     constructor(dataPath = null) {
         // Determine auth directory based on environment
         const isDocker = fs.existsSync('/.dockerenv') || process.env.DOCKER_ENV === 'true';
-        this.dataPath = dataPath || (isDocker 
-            ? '/app/whatsapp_auth' 
+        this.dataPath = dataPath || (isDocker
+            ? '/app/whatsapp_auth'
             : path.join(process.cwd(), '.wwebjs_auth'));
-        
+
         this.sessionStorePath = path.join(this.dataPath, 'session_tokens.enc');
         this.encryptionKey = this.getOrCreateEncryptionKey();
-        
+
         // Ensure data directory exists
         if (!fs.existsSync(this.dataPath)) {
             fs.mkdirSync(this.dataPath, { recursive: true });
@@ -30,7 +30,7 @@ class SessionManager {
      */
     getOrCreateEncryptionKey() {
         const keyFile = path.join(this.dataPath, '.session_key');
-        
+
         // Try to use environment variable first
         if (process.env.SESSION_ENCRYPTION_KEY) {
             return Buffer.from(process.env.SESSION_ENCRYPTION_KEY, 'hex');
@@ -66,10 +66,10 @@ class SessionManager {
         try {
             const iv = crypto.randomBytes(16);
             const cipher = crypto.createCipheriv('aes-256-cbc', this.encryptionKey, iv);
-            
+
             let encrypted = cipher.update(JSON.stringify(sessionData), 'utf-8', 'hex');
             encrypted += cipher.final('hex');
-            
+
             const data = {
                 iv: iv.toString('hex'),
                 data: encrypted,
@@ -99,10 +99,10 @@ class SessionManager {
             const fileData = JSON.parse(fs.readFileSync(this.sessionStorePath, 'utf-8'));
             const iv = Buffer.from(fileData.iv, 'hex');
             const decipher = crypto.createDecipheriv('aes-256-cbc', this.encryptionKey, iv);
-            
+
             let decrypted = decipher.update(fileData.data, 'hex', 'utf-8');
             decrypted += decipher.final('utf-8');
-            
+
             const sessionData = JSON.parse(decrypted);
             console.log('Session data loaded and decrypted successfully');
             return sessionData;
@@ -169,7 +169,7 @@ class SessionManager {
 
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
             const destination = backupPath || path.join(this.dataPath, `session_backup_${timestamp}.enc`);
-            
+
             fs.copyFileSync(this.sessionStorePath, destination);
             console.log(`Session backed up to: ${destination}`);
             return true;
