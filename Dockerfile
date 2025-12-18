@@ -45,8 +45,10 @@ RUN npm install
 # Create directories for configuration and WhatsApp authentication
 RUN mkdir -p /app/config /app/whatsapp_auth
 
-# Copy application code
-COPY . .
+# Copy application code, excluding session directories and node_modules
+COPY --chown=node:node . .
+RUN rm -rf /app/whatsapp_auth/* /app/node_modules/.cache 2>/dev/null || true
+RUN chmod -R 755 /app && chmod -R 777 /app/config /app/whatsapp_auth
 
 EXPOSE 3000
 

@@ -3,11 +3,13 @@ const qrcode = require('qrcode-terminal');
 const path = require('path');
 const fs = require('fs');
 const ConfigManager = require('./configManager');
+const SessionManager = require('./sessionManager');
 
 class WhatsAppForwardService {
     constructor() {
         this.client = null;
         this.configManager = new ConfigManager();
+        this.sessionManager = new SessionManager();
         this.config = this.configManager.getConfig();
         this.startTime = null;
         this.isRunning = false;
@@ -81,6 +83,14 @@ class WhatsAppForwardService {
         
         console.log(`Using auth directory: ${authDir}`);
         
+        // Check if we have a saved session
+        const savedSession = this.sessionManager.loadSession();
+        if (savedSession) {
+            console.log('Restored session from encrypted storage');
+        } else {
+            console.log('No saved session found - you will need to scan QR code');
+        }
+        
         this.client = new Client({
             authStrategy: new LocalAuth({ clientId: 'whatsapp-forward', dataPath: authDir }),
             puppeteer: {
@@ -107,17 +117,29 @@ class WhatsAppForwardService {
             this.isRunning = true;
             this.isAuthenticating = false;
             this.startTime = Date.now();
+            
+            // Save session data for future recovery
+            this.sessionManager.saveSession({
+                authenticatedAt: new Date().toISOString(),
+                clientId: 'whatsapp-forward'
+            });
+            
             this.startConnectionManagement();
         });
 
         this.client.on('authenticated', () => {
             console.log('Authenticated successfully!');
             this.isAuthenticating = false;
+            
+            // Backup session on successful authentication
+            this.sessionManager.backupSession();
         });
 
         this.client.on('auth_failure', (msg) => {
             console.error('Authentication failed:', msg);
             this.isAuthenticating = false;
+            // Clear saved session on auth failure
+            this.sessionManager.clearSession();
         });
 
         this.client.on('disconnected', (reason) => {
@@ -418,9 +440,12 @@ class WhatsAppForwardService {
     }
 
     getStatus() {
+        const sessionMetadata = this.sessionManager.getSessionMetadata();
         return {
             isLoggedIn: this.isRunning,
             hasSavedSession: this.hasSavedSession(),
+            hasEncryptedSession: this.sessionManager.hasValidSession(),
+            sessionLastAuthenticated: sessionMetadata ? sessionMetadata.timestamp : null,
             trackerNumbers: this.trackerNumbers,
             forwardNumber: this.forwardNumber,
             startTimeRange: this.startTimeRange,

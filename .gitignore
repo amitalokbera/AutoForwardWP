@@ -83,3 +83,18 @@ config/
 config.json
 
 .wwebjs_*/
+
+# WhatsApp session authentication
+whatsapp_auth/
+.wwebjs_auth/
+
+# Session encryption key
+backend/.session_key
+whatsapp_auth/.session_key
+
+# Session encrypted storage
+session_tokens.enc
+session_backup_*.enc
+
+# Puppeteer cache
+.cache/puppeteer
