@@ -127,6 +127,18 @@ class WhatsAppForwardService {
         });
 
         this.client.on('message', async (message) => {
+            // Log full message object for debugging
+            console.log(`[Message Object Debug]`, JSON.stringify({
+                from: message.from,
+                author: message.author,
+                body: message.body,
+                type: message.type,
+                hasMedia: message.hasMedia,
+                chatId: message.chatId,
+                deviceType: message.deviceType,
+                isForwarded: message.isForwarded
+            }, null, 2));
+            
             if (this.shouldForwardMessage(message)) {
                 await this.forwardMessage(message);
             }
@@ -154,17 +166,19 @@ class WhatsAppForwardService {
         // Skip if sender is undefined or invalid
         if (!sender) return false;
         
-        // Extract just the phone number from sender (before @c.us)
-        const senderNumber = sender.replace('@c.us', '');
+        // Extract just the phone number from sender (handles @c.us, @lid, and other formats)
+        const senderNumber = sender.replace(/@c\.us|@lid|@g\.us|@.*/, '');
         
         // Skip if sender number is empty
         if (!senderNumber) return false;
         
         console.log(`[Message Received] From: ${sender}, Sender Number: ${senderNumber}, Message: ${message.body || '[Media]'}`);
         
-        const isFromTracker = this.trackerNumbers.some(num => 
-            senderNumber === num || sender.includes(num)
-        );
+        const isFromTracker = this.trackerNumbers.some(num => {
+            // Extract just the number part from tracker number (remove country code if present)
+            const cleanNum = num.replace(/@c\.us|@lid|@g\.us|@.*/, '');
+            return senderNumber === num || senderNumber === cleanNum || sender.includes(num);
+        });
         
         console.log(`[Tracker Check] Is from tracked number: ${isFromTracker}, Tracked Numbers: ${this.trackerNumbers.join(', ')}`);
         
