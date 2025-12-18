@@ -78,3 +78,6 @@ docker-compose.*.local.yml
 
 # Compose environment files (if used for local secrets/config)
 docker-compose.*.env
+
+config/
+config.json

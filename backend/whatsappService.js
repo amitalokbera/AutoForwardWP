@@ -69,9 +69,20 @@ class WhatsAppForwardService {
     shouldForwardMessage(message) {
         if (!this.trackerNumbers.length || !this.forwardNumber) return false;
         
-        const sender = message.from.includes('@c.us') ? message.from : message.author;
+        // Get sender from message.from or message.author
+        const sender = message.from || message.author;
+        
+        // Skip if sender is undefined or invalid
+        if (!sender) return false;
+        
+        // Extract just the phone number from sender (before @c.us)
+        const senderNumber = sender.replace('@c.us', '');
+        
+        // Skip if sender number is empty
+        if (!senderNumber) return false;
+        
         const isFromTracker = this.trackerNumbers.some(num => 
-            sender.includes(num) || message.from.includes(num)
+            senderNumber === num || sender.includes(num)
         );
         
         if (!isFromTracker) return false;
@@ -103,9 +114,30 @@ class WhatsAppForwardService {
 
     async forwardMessage(message) {
         try {
-            const chat = await this.client.getChatById(this.forwardNumber + '@c.us');
-            await chat.sendMessage(message.body || message.mediaData?.mimetype || 'Forwarded message');
-            console.log(`Forwarded message from ${message.from} to ${this.forwardNumber}`);
+            // Format the forward number with country code
+            const formattedNumber = this.countryCode + this.forwardNumber;
+            const chat = await this.client.getChatById(formattedNumber + '@c.us');
+            
+            // Check if message has media/attachment
+            if (message.hasMedia) {
+                try {
+                    // Download the media from the original message
+                    const media = await message.downloadMedia();
+                    
+                    // Forward the media with caption if available
+                    const caption = message.body || '';
+                    await chat.sendMessage(media, null, { caption: caption });
+                    console.log(`Forwarded media from ${message.from} to ${this.forwardNumber}`);
+                } catch (mediaError) {
+                    console.error('Error forwarding media, sending text instead:', mediaError);
+                    // Fallback: send as text if media download fails
+                    await chat.sendMessage(`[Attachment] ${message.body || 'Media forwarded (unable to download)'}`);
+                }
+            } else {
+                // Forward text message
+                await chat.sendMessage(message.body || 'Forwarded message');
+                console.log(`Forwarded message from ${message.from} to ${this.forwardNumber}`);
+            }
         } catch (error) {
             console.error('Error forwarding message:', error);
         }
@@ -167,8 +199,9 @@ class WhatsAppForwardService {
     }
 
     setTrackerNumbers(numbers) {
-        this.trackerNumbers = numbers;
-        this.config.trackerNumbers = numbers;
+        // Prepend country code to each tracker number
+        this.trackerNumbers = numbers.map(num => this.countryCode + num);
+        this.config.trackerNumbers = this.trackerNumbers;
         this.configManager.saveConfig();
     }
 
@@ -212,6 +245,13 @@ class WhatsAppForwardService {
         this.countryCode = code;
         this.config.countryCode = code;
         this.configManager.saveConfig();
+        // Re-format tracker numbers with new country code
+        if (this.trackerNumbers.length > 0) {
+            // Remove old country code prefix if it exists
+            const oldCode = this.trackerNumbers[0].match(/^\d+/);
+            const stripNumbers = oldCode ? this.trackerNumbers.map(num => num.substring(oldCode[0].length)) : this.trackerNumbers;
+            this.setTrackerNumbers(stripNumbers);
+        }
     }
 
     testConnection() {
