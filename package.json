@@ -1,0 +1,18 @@
+{
+  "name": "whatsapp-forward-service",
+  "version": "1.0.0",
+  "description": "WhatsApp forward service that tracks and forwards messages",
+  "main": "backend/server.js",
+  "scripts": {
+    "start": "node backend/server.js",
+    "dev": "nodemon backend/server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "whatsapp-web.js": "^1.28.0",
+    "qrcode-terminal": "^0.12.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}

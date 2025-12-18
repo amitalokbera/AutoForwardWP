@@ -1,0 +1,80 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnp.cjs
+.pnp.js
+
+# Build outputs (React/Express/TS)
+dist/
+build/
+out/
+lib/
+.esbuild/
+.next/
+.vite/
+.parcel-cache/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Logs & runtime files
+logs/
+*.log
+*.log.*
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Test coverage & coverage tools
+coverage/
+.nyc_output/
+jest-*.json
+
+# Caches
+.cache/
+.eslintcache
+.stylelintcache
+*.tgz
+
+# TypeScript
+*.tsbuildinfo
+
+# IDEs / Editors
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Misc
+coverage-*.json
+
+# Docker
+# Local compose overrides and local compose files
+docker-compose.override.yml
+docker-compose.local.yml
+docker-compose.*.local.yml
+
+# Local docker-related directory
+.docker/
+
+# Docker image archives and exported images
+*.tar
+*.tar.gz
+*.tgz
+
+# Compose environment files (if used for local secrets/config)
+docker-compose.*.env

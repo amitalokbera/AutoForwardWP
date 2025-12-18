@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp Forward Service</title>
+    <script src="https://cdn.jsdelivr.net/npm/react@18.0.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.0.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        function App() {
+            const [status, setStatus] = useState(null);
+            const [trackerNumbers, setTrackerNumbers] = useState('');
+            const [forwardNumber, setForwardNumber] = useState('');
+            const [lastCheckTime, setLastCheckTime] = useState('');
+            const [isInitializing, setIsInitializing] = useState(false);
+
+            useEffect(() => {
+                fetchStatus();
+            }, []);
+
+            const fetchStatus = async () => {
+                try {
+                    const response = await fetch('/status');
+                    const data = await response.json();
+                    setStatus(data);
+                } catch (error) {
+                    console.error('Error fetching status:', error);
+                }
+            };
+
+            const handleInitialize = async () => {
+                setIsInitializing(true);
+                try {
+                    await fetch('/initialize', { method: 'POST' });
+                    await fetchStatus();
+                } catch (error) {
+                    console.error('Error initializing:', error);
+                } finally {
+                    setIsInitializing(false);
+                }
+            };
+
+            const handleSetTrackerNumbers = async () => {
+                try {
+                    await fetch('/set-tracker-numbers', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ numbers: trackerNumbers.split(',').map(n => n.trim()) })
+                    });
+                    await fetchStatus();
+                } catch (error) {
+                    console.error('Error setting tracker numbers:', error);
+                }
+            };
+
+            const handleSetForwardNumber = async () => {
+                try {
+                    await fetch('/set-forward-number', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ number: forwardNumber })
+                    });
+                    await fetchStatus();
+                } catch (error) {
+                    console.error('Error setting forward number:', error);
+                }
+            };
+
+            const handleSetLastCheckTime = async () => {
+                try {
+                    await fetch('/set-last-check-time', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ time: lastCheckTime })
+                    });
+                    await fetchStatus();
+                } catch (error) {
+                    console.error('Error setting last check time:', error);
+                }
+            };
+
+            return (
+                <div className="min-h-screen bg-gray-100 p-4">
+                    <div className="max-w-4xl mx-auto">
+                        <h1 className="text-3xl font-bold text-center mb-8 text-gray-800">WhatsApp Forward Service</h1>
+                        
+                        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+                            <h2 className="text-xl font-semibold mb-4">Status</h2>
+                            {status ? (
+                                <div className="space-y-2">
+                                    <p>Logged in: <span className={`font-semibold ${status.isLoggedIn ? 'text-green-600' : 'text-red-600'}`}>
+                                        {status.isLoggedIn ? 'Yes' : 'No'}
+                                    </span></p>
+                                    <p>Tracker Numbers: <span className="font-semibold">{status.trackerNumbers.join(', ') || 'Not set'}</span></p>
+                                    <p>Forward Number: <span className="font-semibold">{status.forwardNumber || 'Not set'}</span></p>
+                                    <p>Last Check Time: <span className="font-semibold">{status.lastCheckTime || 'Not set'}</span></p>
+                                </div>
+                            ) : (
+                                <p>Loading status...</p>
+                            )}
+                        </div>
+
+                        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+                            <h2 className="text-xl font-semibold mb-4">Initialize WhatsApp</h2>
+                            <button 
+                                onClick={handleInitialize}
+                                disabled={isInitializing}
+                                className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:bg-gray-400"
+                            >
+                                {isInitializing ? 'Initializing...' : 'Initialize WhatsApp'}
+                            </button>
+                            <p className="text-sm text-gray-600 mt-2">
+                                {status?.isLoggedIn ? 'WhatsApp is already logged in' : 'Scan the QR code that appears in the console'}
+                            </p>
+                        </div>
+
+                        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+                            <h2 className="text-xl font-semibold mb-4">Configuration</h2>
+                            
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium mb-2">Tracker Numbers (comma separated)</label>
+                                <input
+                                    type="text"
+                                    value={trackerNumbers}
+                                    onChange={(e) => setTrackerNumbers(e.target.value)}
+                                    placeholder="e.g., 1234567890, 0987654321"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                                <button 
+                                    onClick={handleSetTrackerNumbers}
+                                    className="mt-2 bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+                                >
+                                    Set Tracker Numbers
+                                </button>
+                            </div>
+
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium mb-2">Forward Number</label>
+                                <input
+                                    type="text"
+                                    value={forwardNumber}
+                                    onChange={(e) => setForwardNumber(e.target.value)}
+                                    placeholder="e.g., 1122334455"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                                <button 
+                                    onClick={handleSetForwardNumber}
+                                    className="mt-2 bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+                                >
+                                    Set Forward Number
+                                </button>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium mb-2">Last Check Time (24h format)</label>
+                                <input
+                                    type="text"
+                                    value={lastCheckTime}
+                                    onChange={(e) => setLastCheckTime(e.target.value)}
+                                    placeholder="e.g., 14:30"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                                <button 
+                                    onClick={handleSetLastCheckTime}
+                                    className="mt-2 bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+                                >
+                                    Set Last Check Time
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
