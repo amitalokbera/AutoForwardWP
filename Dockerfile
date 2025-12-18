@@ -7,15 +7,17 @@ WORKDIR /app
 COPY package.json .
 RUN npm install
 
-# Create directory for configuration
-RUN mkdir -p /app/config
+# Create directories for configuration and WhatsApp authentication
+RUN mkdir -p /app/config /app/whatsapp_auth
 
 # Copy application code
 COPY . .
 
 EXPOSE 3000
 
-# Default volume mount point for configuration persistence
-VOLUME ["/app/config"]
+# Volume mount points for persistence
+# /app/config - for application configuration (tracker numbers, forward number, etc.)
+# /app/whatsapp_auth - for WhatsApp session data (authentication persistence)
+VOLUME ["/app/config", "/app/whatsapp_auth"]
 
 CMD ["npm", "start"]

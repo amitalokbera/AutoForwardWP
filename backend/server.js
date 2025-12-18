@@ -18,6 +18,16 @@ app.use((req, res, next) => {
 
 const whatsappService = new WhatsAppForwardService();
 
+// Auto-initialize WhatsApp client on server start
+async function startServer() {
+    try {
+        console.log('Auto-initializing WhatsApp client on server start...');
+        await whatsappService.initialize();
+    } catch (error) {
+        console.error('Error during auto-initialization:', error.message);
+    }
+}
+
 app.get('/status', (req, res) => {
     res.json(whatsappService.getStatus());
 });
@@ -71,8 +81,9 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/index.html'));
 });
 
-app.listen(port, () => {
+app.listen(port, async () => {
     console.log(`Server running on port ${port}`);
+    await startServer();
 });
 
 module.exports = app;

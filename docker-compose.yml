@@ -1,0 +1,21 @@
+version: "3.8"
+
+services:
+  whatsapp-forward:
+    build: .
+    container_name: whatsapp-forward-service
+    ports:
+      - "3200:3000"
+    volumes:
+      - ./config:/app/config
+      - ./whatsapp_auth:/app/whatsapp_auth
+    environment:
+      - DOCKER_ENV=true
+      - NODE_ENV=production
+    restart: unless-stopped
+    networks:
+      - whatsapp-network
+
+networks:
+  whatsapp-network:
+    driver: bridge

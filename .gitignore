@@ -81,3 +81,5 @@ docker-compose.*.env
 
 config/
 config.json
+
+.wwebjs_*/

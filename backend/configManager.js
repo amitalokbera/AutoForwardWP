@@ -3,8 +3,17 @@ const path = require('path');
 
 class ConfigManager {
     constructor() {
-        // Use volume-mounted config directory
-        this.configDir = '/app/config';
+        // Detect if running in Docker or locally
+        const isDocker = fs.existsSync('/.dockerenv') || process.env.DOCKER_ENV === 'true';
+        
+        if (isDocker) {
+            // Use volume-mounted config directory for Docker
+            this.configDir = '/app/config';
+        } else {
+            // Use current working directory for local development
+            this.configDir = path.join(process.cwd(), 'config');
+        }
+        
         this.configPath = path.join(this.configDir, 'config.json');
         this.config = this.loadConfig();
     }

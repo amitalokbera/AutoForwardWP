@@ -1,5 +1,7 @@
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
+const path = require('path');
+const fs = require('fs');
 const ConfigManager = require('./configManager');
 
 class WhatsAppForwardService {
@@ -21,9 +23,66 @@ class WhatsAppForwardService {
         this.countryCode = this.config.countryCode;
     }
 
+    hasSavedSession() {
+        // Determine auth directory based on environment
+        const isDocker = fs.existsSync('/.dockerenv') || process.env.DOCKER_ENV === 'true';
+        const authDir = isDocker 
+            ? '/app/whatsapp_auth' 
+            : path.join(process.cwd(), '.wwebjs_auth');
+        
+        try {
+            // Check if auth directory exists
+            if (!fs.existsSync(authDir)) {
+                console.log(`Auth directory does not exist: ${authDir}`);
+                return false;
+            }
+            
+            // List all contents in the auth directory recursively to find session files
+            const files = this.getAllFiles(authDir);
+            const hasSession = files.length > 0;
+            console.log(`Session files found in ${authDir}: ${hasSession}`);
+            console.log(`Total files in auth directory: ${files.length}`);
+            return hasSession;
+        } catch (error) {
+            console.error('Error checking saved session:', error);
+            return false;
+        }
+    }
+    
+    getAllFiles(dir) {
+        const files = [];
+        try {
+            const entries = fs.readdirSync(dir, { withFileTypes: true });
+            for (const entry of entries) {
+                const fullPath = path.join(dir, entry.name);
+                if (entry.isDirectory()) {
+                    files.push(...this.getAllFiles(fullPath));
+                } else {
+                    files.push(fullPath);
+                }
+            }
+        } catch (error) {
+            // Directory doesn't exist or can't be read
+        }
+        return files;
+    }
+
     async initialize() {
+        // Determine auth directory based on environment
+        const isDocker = fs.existsSync('/.dockerenv') || process.env.DOCKER_ENV === 'true';
+        const authDir = isDocker 
+            ? '/app/whatsapp_auth' 
+            : path.join(process.cwd(), '.wwebjs_auth');
+        
+        // Ensure auth directory exists
+        if (!fs.existsSync(authDir)) {
+            fs.mkdirSync(authDir, { recursive: true });
+        }
+        
+        console.log(`Using auth directory: ${authDir}`);
+        
         this.client = new Client({
-            authStrategy: new LocalAuth(),
+            authStrategy: new LocalAuth({ clientId: 'whatsapp-forward', dataPath: authDir }),
             puppeteer: {
                 args: ['--no-sandbox', '--disable-setuid-sandbox']
             }
@@ -37,6 +96,7 @@ class WhatsAppForwardService {
         this.client.on('ready', () => {
             console.log('WhatsApp client is ready!');
             this.isRunning = true;
+            this.isAuthenticating = false;
             this.startTime = Date.now();
             this.startConnectionManagement();
         });
@@ -63,7 +123,17 @@ class WhatsAppForwardService {
             }
         });
 
-        await this.client.initialize();
+        console.log('Initializing WhatsApp client...');
+        this.isAuthenticating = true;
+        
+        try {
+            await this.client.initialize();
+            console.log('WhatsApp client initialized successfully');
+        } catch (error) {
+            console.error('Error initializing WhatsApp client:', error);
+            this.isAuthenticating = false;
+            throw error;
+        }
     }
 
     shouldForwardMessage(message) {
@@ -115,8 +185,22 @@ class WhatsAppForwardService {
     async forwardMessage(message) {
         try {
             // Format the forward number with country code
-            const formattedNumber = this.countryCode + this.forwardNumber;
-            const chat = await this.client.getChatById(formattedNumber + '@c.us');
+            const formattedNumber = this.countryCode + this.forwardNumber + '@c.us';
+            
+            // Try to get or create the chat
+            let chat = null;
+            try {
+                // First, try to get existing chat
+                chat = await this.client.getChatById(formattedNumber);
+            } catch (e) {
+                try {
+                    // If chat doesn't exist, try to get the contact and create chat
+                    const contact = await this.client.getContactById(formattedNumber);
+                    chat = await contact.getChat();
+                } catch (contactError) {
+                    console.log(`Chat/Contact not found, will attempt direct message send for ${formattedNumber}`);
+                }
+            }
             
             // Check if message has media/attachment
             if (message.hasMedia) {
@@ -124,19 +208,52 @@ class WhatsAppForwardService {
                     // Download the media from the original message
                     const media = await message.downloadMedia();
                     
-                    // Forward the media with caption if available
-                    const caption = message.body || '';
-                    await chat.sendMessage(media, null, { caption: caption });
+                    if (chat) {
+                        // Send media with the message body as caption
+                        if (message.body) {
+                            await chat.sendMessage(media, null, { caption: message.body });
+                        } else {
+                            await chat.sendMessage(media);
+                        }
+                    } else {
+                        // Get contact and send media
+                        const contact = await this.client.getContactById(formattedNumber);
+                        if (message.body) {
+                            await contact.sendMessage(media, { caption: message.body });
+                        } else {
+                            await contact.sendMessage(media);
+                        }
+                    }
                     console.log(`Forwarded media from ${message.from} to ${this.forwardNumber}`);
                 } catch (mediaError) {
                     console.error('Error forwarding media, sending text instead:', mediaError);
                     // Fallback: send as text if media download fails
-                    await chat.sendMessage(`[Attachment] ${message.body || 'Media forwarded (unable to download)'}`);
+                    const fallbackMessage = `[Attachment] ${message.body || 'Media forwarded (unable to download)'}`;
+                    try {
+                        if (chat) {
+                            await chat.sendMessage(fallbackMessage);
+                        } else {
+                            const contact = await this.client.getContactById(formattedNumber);
+                            await contact.sendMessage(fallbackMessage);
+                        }
+                    } catch (sendError) {
+                        console.error('Error sending fallback message:', sendError);
+                    }
                 }
             } else {
                 // Forward text message
-                await chat.sendMessage(message.body || 'Forwarded message');
-                console.log(`Forwarded message from ${message.from} to ${this.forwardNumber}`);
+                const textMessage = message.body || 'Forwarded message';
+                try {
+                    if (chat) {
+                        await chat.sendMessage(textMessage);
+                    } else {
+                        const contact = await this.client.getContactById(formattedNumber);
+                        await contact.sendMessage(textMessage);
+                    }
+                    console.log(`Forwarded message from ${message.from} to ${this.forwardNumber}`);
+                } catch (sendError) {
+                    console.error('Error sending text message:', sendError);
+                }
             }
         } catch (error) {
             console.error('Error forwarding message:', error);
@@ -269,6 +386,7 @@ class WhatsAppForwardService {
     getStatus() {
         return {
             isLoggedIn: this.isRunning,
+            hasSavedSession: this.hasSavedSession(),
             trackerNumbers: this.trackerNumbers,
             forwardNumber: this.forwardNumber,
             startTimeRange: this.startTimeRange,
