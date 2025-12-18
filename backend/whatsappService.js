@@ -179,7 +179,7 @@ class WhatsAppForwardService {
         }
     }
 
-    shouldForwardMessage(message) {
+    async shouldForwardMessage(message) {
         if (!this.trackerNumbers.length || !this.forwardNumber) return false;
 
         // Get sender from message.from or message.author
@@ -189,7 +189,24 @@ class WhatsAppForwardService {
         if (!sender) return false;
 
         // Extract just the phone number from sender (handles @c.us, @lid, and other formats)
-        const senderNumber = sender.replace(/@c\.us|@lid|@g\.us|@.*/, '');
+        let senderNumber = sender.replace(/@c\.us|@lid|@g\.us|@.*/, '');
+
+        // If sender has @lid, try to get actual phone number from contact
+        if (sender.includes('@lid')) {
+            try {
+                console.log(`[LID Detected] Attempting to fetch actual number for: ${sender}`);
+                const contact = await message.getContact();
+                if (contact && contact.number) {
+                    senderNumber = contact.number;
+                    console.log(`[LID Resolved] Actual phone number: ${senderNumber}`);
+                } else {
+                    console.log(`[LID Warning] Could not resolve phone number from contact`);
+                }
+            } catch (error) {
+                console.error(`[LID Error] Failed to get contact for ${sender}:`, error.message);
+                // Continue with the LID-based number as fallback
+            }
+        }
 
         // Skip if sender number is empty
         if (!senderNumber) return false;
