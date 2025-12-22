@@ -69,6 +69,25 @@ class WhatsAppForwardService {
         return files;
     }
 
+    cleanupSessionLocks(authDir) {
+        const sessionDir = path.join(authDir, 'session-whatsapp-forward');
+        const lockFiles = ['SingletonLock', 'SingletonCookie', 'SingletonSocket'];
+
+        if (fs.existsSync(sessionDir)) {
+            lockFiles.forEach(file => {
+                const filePath = path.join(sessionDir, file);
+                if (fs.existsSync(filePath)) {
+                    try {
+                        fs.unlinkSync(filePath);
+                        console.log(`Removed lock file: ${filePath}`);
+                    } catch (error) {
+                        console.error(`Failed to remove lock file ${filePath}:`, error);
+                    }
+                }
+            });
+        }
+    }
+
     async initialize() {
         // Determine auth directory based on environment
         const isDocker = fs.existsSync('/.dockerenv') || process.env.DOCKER_ENV === 'true';
@@ -82,6 +101,9 @@ class WhatsAppForwardService {
         }
 
         console.log(`Using auth directory: ${authDir}`);
+
+        // Cleanup lock files to prevent Chromium startup errors
+        this.cleanupSessionLocks(authDir);
 
         // Check if we have a saved session
         const savedSession = this.sessionManager.loadSession();
